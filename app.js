@@ -1,6 +1,6 @@
 // ── Configuration ──────────────────────────────────────────────
 const NOMINATIM = 'https://nominatim.openstreetmap.org';
-const OSRM      = 'https://router.project-osrm.org/route/v1/driving';
+const VALHALLA  = 'https://valhalla1.openstreetmap.de';
 const IRVE_API  = 'https://odre.opendatasoft.com/api/explore/v2.1/catalog/datasets/bornes-irve/records';
 
 // ── State ───────────────────────────────────────────────────────
@@ -100,14 +100,31 @@ async function suggest(query, listEl) {
   }
 }
 
-// ── Routing via OSRM ────────────────────────────────────────────
+// ── Routing via Valhalla (OpenStreetMap) ────────────────────────
 async function getRoute(start, end) {
-  const url = `${OSRM}/${start.lon},${start.lat};${end.lon},${end.lat}?overview=full&geometries=geojson`;
-  const res = await fetch(url);
+  const body = {
+    locations: [
+      { lon: start.lon, lat: start.lat },
+      { lon: end.lon,   lat: end.lat   },
+    ],
+    costing: 'auto',
+    shape_format: 'geojson',
+  };
+  const res = await fetch(`${VALHALLA}/route`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
   if (!res.ok) throw new Error('Erreur de calcul d\'itinéraire');
   const data = await res.json();
-  if (data.code !== 'Ok') throw new Error('Itinéraire introuvable');
-  return data.routes[0];
+  if (!data.trip) throw new Error('Itinéraire introuvable');
+  const leg = data.trip.legs[0];
+  // Normalize to the same shape as before: { geometry: {coordinates}, distance (m), duration (s) }
+  return {
+    geometry: leg.shape,           // GeoJSON LineString
+    distance: data.trip.summary.length * 1000,  // km → m
+    duration: data.trip.summary.time,            // seconds
+  };
 }
 
 // ── Bounding box helper ─────────────────────────────────────────
@@ -239,10 +256,20 @@ async function search(e) {
 
   try {
     // 1. Geocode cities
-    const [startCoord, endCoord] = await Promise.all([geocode(startVal), geocode(endVal)]);
+    let startCoord, endCoord;
+    try {
+      [startCoord, endCoord] = await Promise.all([geocode(startVal), geocode(endVal)]);
+    } catch (err) {
+      throw new Error(`Géocodage impossible : ${err.message}`);
+    }
 
     // 2. Get route
-    const route = await getRoute(startCoord, endCoord);
+    let route;
+    try {
+      route = await getRoute(startCoord, endCoord);
+    } catch (err) {
+      throw new Error(`Calcul d'itinéraire impossible : ${err.message}`);
+    }
     const routeCoords = route.geometry.coordinates; // [[lon,lat], ...]
 
     // 3. Draw route
