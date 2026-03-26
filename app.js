@@ -1,5 +1,5 @@
 // ── Configuration ──────────────────────────────────────────────
-const NOMINATIM = 'https://nominatim.openstreetmap.org';
+const PHOTON    = 'https://photon.komoot.io';
 const VALHALLA  = 'https://valhalla1.openstreetmap.de';
 const IRVE_API  = 'https://odre.opendatasoft.com/api/explore/v2.1/catalog/datasets/bornes-irve/records';
 
@@ -51,45 +51,44 @@ function stationIcon(color = '#22c55e') {
   });
 }
 
-// ── Geocoding ───────────────────────────────────────────────────
+// ── Geocoding via Photon (Komoot) ────────────────────────────────
+function photonFeatureToCoord(f) {
+  const [lon, lat] = f.geometry.coordinates;
+  const p = f.properties;
+  const display = [p.name, p.city, p.county, p.state, p.country].filter(Boolean).join(', ');
+  return { lat, lon, display };
+}
+
 async function geocode(city) {
-  const params = new URLSearchParams({
-    q: city,
-    format: 'json',
-    countrycodes: 'fr',
-    limit: 1,
-    addressdetails: 1,
-  });
-  const res = await fetch(`${NOMINATIM}/search?${params}`, {
-    headers: { 'Accept-Language': 'fr' },
-  });
+  const params = new URLSearchParams({ q: city, lang: 'fr', limit: 1, layer: 'city' });
+  const res = await fetch(`${PHOTON}/api/?${params}`);
   if (!res.ok) throw new Error('Erreur de géocodage');
   const data = await res.json();
-  if (!data.length) throw new Error(`Ville introuvable : "${city}"`);
-  return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), display: data[0].display_name };
+  // Retry without layer filter if no city found
+  if (!data.features?.length) {
+    const params2 = new URLSearchParams({ q: city + ', France', lang: 'fr', limit: 1 });
+    const res2 = await fetch(`${PHOTON}/api/?${params2}`);
+    const data2 = await res2.json();
+    if (!data2.features?.length) throw new Error(`Ville introuvable : "${city}"`);
+    return photonFeatureToCoord(data2.features[0]);
+  }
+  return photonFeatureToCoord(data.features[0]);
 }
 
 async function suggest(query, listEl) {
   if (query.length < 2) { listEl.innerHTML = ''; listEl.classList.add('hidden'); return; }
-  const params = new URLSearchParams({
-    q: query,
-    format: 'json',
-    countrycodes: 'fr',
-    limit: 6,
-    addressdetails: 1,
-    featuretype: 'city',
-  });
+  const params = new URLSearchParams({ q: query + ', France', lang: 'fr', limit: 6 });
   try {
-    const res = await fetch(`${NOMINATIM}/search?${params}`, {
-      headers: { 'Accept-Language': 'fr' },
-    });
+    const res = await fetch(`${PHOTON}/api/?${params}`);
     const data = await res.json();
-    if (!data.length) { listEl.innerHTML = ''; listEl.classList.add('hidden'); return; }
+    if (!data.features?.length) { listEl.innerHTML = ''; listEl.classList.add('hidden'); return; }
 
-    listEl.innerHTML = data.map((d, i) => {
-      const name = d.name || d.display_name.split(',')[0];
-      const dept = d.address?.county || d.address?.state || '';
-      return `<li data-idx="${i}" data-name="${name}" data-lat="${d.lat}" data-lon="${d.lon}">
+    listEl.innerHTML = data.features.map((f, i) => {
+      const p = f.properties;
+      const name = p.name || p.city || query;
+      const dept = p.county || p.state || '';
+      const [lon, lat] = f.geometry.coordinates;
+      return `<li data-idx="${i}" data-name="${name}" data-lat="${lat}" data-lon="${lon}">
         <span>🏙️</span>
         <span><span class="sug-name">${name}</span> <span class="sug-dept">${dept}</span></span>
       </li>`;
