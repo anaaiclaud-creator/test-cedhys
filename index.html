@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bornes électriques - Itinéraire France</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <header>
+        <div class="logo">⚡</div>
+        <h1>Bornes de recharge</h1>
+        <p class="subtitle">Trouvez les bornes sur votre itinéraire</p>
+      </header>
+
+      <form id="route-form">
+        <div class="field">
+          <label for="city-start">Ville de départ</label>
+          <div class="input-wrap">
+            <span class="input-icon">🚗</span>
+            <input
+              type="text"
+              id="city-start"
+              placeholder="Ex: Paris"
+              autocomplete="off"
+              required
+            />
+            <ul class="suggestions" id="suggestions-start"></ul>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="city-end">Ville d'arrivée</label>
+          <div class="input-wrap">
+            <span class="input-icon">📍</span>
+            <input
+              type="text"
+              id="city-end"
+              placeholder="Ex: Lyon"
+              autocomplete="off"
+              required
+            />
+            <ul class="suggestions" id="suggestions-end"></ul>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="radius">Rayon de recherche autour de l'itinéraire</label>
+          <div class="slider-wrap">
+            <input type="range" id="radius" min="5" max="50" value="15" step="5" />
+            <span id="radius-value">15 km</span>
+          </div>
+        </div>
+
+        <button type="submit" id="search-btn">
+          <span id="btn-text">Rechercher les bornes</span>
+          <span id="btn-spinner" class="spinner hidden"></span>
+        </button>
+      </form>
+
+      <div id="results" class="hidden">
+        <div id="route-info">
+          <div class="info-chip" id="chip-distance">📏 —</div>
+          <div class="info-chip" id="chip-duration">⏱ —</div>
+          <div class="info-chip" id="chip-count">⚡ —</div>
+        </div>
+
+        <div id="stations-list"></div>
+      </div>
+
+      <div id="error-msg" class="hidden"></div>
+    </aside>
+
+    <main id="map-container">
+      <div id="map"></div>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
